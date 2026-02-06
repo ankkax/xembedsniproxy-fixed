@@ -1,0 +1,68 @@
+/*
+ * Main
+ * Copyright (C) 2015 <davidedmundson@kde.org> David Edmundson
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ */
+
+#include "debug.h"
+#include <QGuiApplication>
+#include <QSessionManager>
+
+#include "fdoselectionmanager.h"
+#include "xcbutils.h"
+#include "snidbus.h"
+
+#include <QtDBus/QtDBus>
+
+namespace Xcb {
+    Xcb::Atoms* atoms;
+}
+
+int main(int argc, char ** argv)
+{
+    // Force using XCB platform
+    qputenv("QT_QPA_PLATFORM", "xcb");
+
+    QGuiApplication app(argc, argv);
+
+    if (app.platformName() != QLatin1String("xcb")) {
+        qFatal("xembed-sni-proxy is only useful with XCB. Aborting");
+    }
+
+    auto disableSessionManagement = [](QSessionManager &sm) {
+        sm.setRestartHint(QSessionManager::RestartNever);
+    };
+    QObject::connect(&app, &QGuiApplication::commitDataRequest, disableSessionManagement);
+    QObject::connect(&app, &QGuiApplication::saveStateRequest, disableSessionManagement);
+
+    app.setDesktopSettingsAware(false);
+    app.setQuitOnLastWindowClosed(false);
+
+    qDBusRegisterMetaType<KDbusImageStruct>();
+    qDBusRegisterMetaType<KDbusImageVector>();
+    qDBusRegisterMetaType<KDbusToolTipStruct>();
+
+    Xcb::atoms = new Xcb::Atoms();
+
+    FdoSelectionManager manager;
+
+    int rc = app.exec();
+
+    delete Xcb::atoms;
+    return rc;
+}
+
